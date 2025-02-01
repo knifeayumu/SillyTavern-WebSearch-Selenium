@@ -5,13 +5,14 @@ import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import bodyParser from 'body-parser';
 import { Router } from 'express';
 import { Chalk } from 'chalk';
-import * as os from 'os';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 interface SearchResult {
     results: string;
     links: string[];
+    images: string[];
 }
 
 interface PluginInfo {
@@ -27,68 +28,96 @@ interface Plugin {
 }
 
 const chalk = new Chalk();
-const TIMEOUT = 5000;
 const MODULE_NAME = '[SillyTavern-WebSearch-Selenium]';
 
-function getBrowserName(): string {
-    const env = process.env.ST_SELENIUM_BROWSER;
-    if (env && Object.values(Browser).includes(env)) {
-        return env;
+class DriverConfig {
+    get TIMEOUT(): number {
+        // 5 minutes
+        if (this.isDebug() && !this.isHeadless()) {
+            return 60000 * 5;
+        }
+
+        // 5 seconds
+        return 5000;
     }
 
-    return Browser.CHROME;
-}
+    MAX_IMAGES = 10;
 
-function isHeadless(): boolean {
-    return (process.env.ST_SELENIUM_HEADLESS ?? 'true') === 'true';
-}
+    private getBrowserName(): string {
+        const env = process.env.ST_SELENIUM_BROWSER;
+        if (env && Object.values(Browser).includes(env)) {
+            return env;
+        }
 
-function isDebug(): boolean {
-    return (process.env.ST_SELENIUM_DEBUG ?? 'false') === 'true';
-}
-
-function getChromeOptions(): ChromeOptions {
-    const chromeOptions = new ChromeOptions();
-    if (isHeadless()) {
-        chromeOptions.addArguments('--headless');
+        return Browser.CHROME;
     }
-    chromeOptions.addArguments('--disable-infobars');
-    chromeOptions.addArguments('--disable-gpu');
-    chromeOptions.addArguments('--no-sandbox');
-    chromeOptions.addArguments('--disable-dev-shm-usage');
-    chromeOptions.addArguments('--lang=en-GB');
-    return chromeOptions;
-}
 
-function getFirefoxOptions(): FirefoxOptions {
-    const firefoxOptions = new FirefoxOptions();
-    if (isHeadless()) {
-        firefoxOptions.addArguments('--headless');
+    private isHeadless(): boolean {
+        return (process.env.ST_SELENIUM_HEADLESS ?? 'true') === 'true';
     }
-    firefoxOptions.setPreference('intl.accept_languages', 'en,en_US');
-    return firefoxOptions;
-}
 
-function getEdgeOptions(): EdgeOptions {
-    const edgeOptions = new EdgeOptions();
-    if (isHeadless()) {
-        edgeOptions.addArguments('--headless');
+    private isDebug(): boolean {
+        return (process.env.ST_SELENIUM_DEBUG ?? 'false') === 'true';
     }
-    return edgeOptions;
-}
 
-async function getDriver(): Promise<WebDriver> {
-    const browserName = getBrowserName();
-    console.log(chalk.green(MODULE_NAME), 'Using browser:', browserName);
-    console.log(chalk.green(MODULE_NAME), 'Headless:', isHeadless());
-    console.log(chalk.green(MODULE_NAME), 'Debug:', isDebug());
-    const driver = await new Builder()
-        .forBrowser(browserName)
-        .setChromeOptions(getChromeOptions())
-        .setFirefoxOptions(getFirefoxOptions())
-        .setEdgeOptions(getEdgeOptions())
-        .build();
-    return driver;
+    private getChromeOptions(): ChromeOptions {
+        const chromeOptions = new ChromeOptions();
+        if (this.isHeadless()) {
+            chromeOptions.addArguments('--headless');
+        }
+        chromeOptions.addArguments('--disable-infobars');
+        chromeOptions.addArguments('--disable-gpu');
+        chromeOptions.addArguments('--no-sandbox');
+        chromeOptions.addArguments('--disable-dev-shm-usage');
+        chromeOptions.addArguments('--lang=en-GB');
+        return chromeOptions;
+    }
+
+    private getFirefoxOptions(): FirefoxOptions {
+        const firefoxOptions = new FirefoxOptions();
+        if (this.isHeadless()) {
+            firefoxOptions.addArguments('--headless');
+        }
+        firefoxOptions.setPreference('intl.accept_languages', 'en,en_US');
+        return firefoxOptions;
+    }
+
+    private getEdgeOptions(): EdgeOptions {
+        const edgeOptions = new EdgeOptions();
+        if (this.isHeadless()) {
+            edgeOptions.addArguments('--headless');
+        }
+        return edgeOptions;
+    }
+
+    async getDriver(): Promise<WebDriver> {
+        const browserName = this.getBrowserName();
+        console.log(chalk.green(MODULE_NAME), 'Using browser:', browserName);
+        console.log(chalk.green(MODULE_NAME), 'Headless:', this.isHeadless());
+        console.log(chalk.green(MODULE_NAME), 'Debug:', this.isDebug());
+        const driver = await new Builder()
+            .forBrowser(browserName)
+            .setChromeOptions(this.getChromeOptions())
+            .setFirefoxOptions(this.getFirefoxOptions())
+            .setEdgeOptions(this.getEdgeOptions())
+            .build();
+        return driver;
+    }
+
+    async saveDebugPage(driver: WebDriver): Promise<void> {
+        if (!this.isDebug()) {
+            return;
+        }
+
+        try {
+            const tempPath = path.join(os.tmpdir(), `WebSearch-debug-${Date.now()}.html`);
+            const pageSource = await driver.getPageSource();
+            await fs.promises.writeFile(tempPath, pageSource, 'utf-8');
+            console.log(chalk.green(MODULE_NAME), 'Saving debug page to', tempPath);
+        } catch (error) {
+            console.error(chalk.red(MODULE_NAME), 'Failed to save debug page', error);
+        }
+    }
 }
 
 async function getTextBySelector(driver: WebDriver, selector: string): Promise<string> {
@@ -97,30 +126,29 @@ async function getTextBySelector(driver: WebDriver, selector: string): Promise<s
     return texts.filter(x => x).join('\n');
 }
 
-async function saveDebugPage(driver: WebDriver) {
-    if (!isDebug()) {
-        return;
-    }
-
-    try {
-        const tempPath = path.join(os.tmpdir(), `WebSearch-debug-${Date.now()}.html`);
-        const pageSource = await driver.getPageSource();
-        await fs.promises.writeFile(tempPath, pageSource, 'utf-8');
-        console.log(chalk.green(MODULE_NAME), 'Saving debug page to', tempPath);
-    } catch (error) {
-        console.error(chalk.red(MODULE_NAME), 'Failed to save debug page', error);
+async function findFirstAndClick(driver: WebDriver, by: By): Promise<void> {
+    const elements = await driver.findElements(by);
+    if (elements.length > 0) {
+        const element = await driver.findElement(by);
+        await driver.wait(until.elementIsVisible(element), 1000);
+        await driver.wait(until.elementIsEnabled(element), 1000);
+        await element.click();
     }
 }
 
-async function performGoogleSearch(query: string): Promise<SearchResult> {
-    const driver = await getDriver();
+async function performGoogleSearch(query: string, includeImages: boolean): Promise<SearchResult> {
+    const config = new DriverConfig();
+    const driver = await config.getDriver();
     try {
         console.log(chalk.green(MODULE_NAME), 'Searching Google for:', query);
         await driver.get(`https://google.com/search?hl=en&q=${encodeURIComponent(query)}`);
-        await saveDebugPage(driver);
+        await config.saveDebugPage(driver);
 
         // Wait for the main content
-        await driver.wait(until.elementLocated(By.id('res')), TIMEOUT);
+        await driver.wait(until.elementLocated(By.id('res')), config.TIMEOUT);
+
+        // Accept cookies
+        await findFirstAndClick(driver, By.id('L2AGLb'));
 
         // Get text from different sections
         const text = [
@@ -134,21 +162,41 @@ async function performGoogleSearch(query: string): Promise<SearchResult> {
         const links = await driver.findElements(By.css('.yuRUbf a'));
         const linksText = await Promise.all(links.map(el => el.getAttribute('href')));
 
-        console.log(chalk.green(MODULE_NAME), 'Found:', text, linksText);
-        return { results: text, links: linksText };
+        // Get images
+        const images: string[] = [];
+
+        if (includeImages) {
+            await driver.get(`https://google.com/search?hl=en&q=${encodeURIComponent(query)}&tbm=isch`);
+            await config.saveDebugPage(driver);
+
+            // Wait for the images content
+            await driver.wait(until.elementLocated(By.css('#search .ob5Hkd img')), config.TIMEOUT);
+
+            const imageTiles = await driver.findElements(By.css('.ob5Hkd img'));
+            const numberOfImages = Math.min(imageTiles.length, config.MAX_IMAGES);
+
+            for (let i = 0; i < numberOfImages; i++) {
+                const src = await imageTiles[i].getAttribute('src');
+                images.push(src);
+            }
+        }
+
+        console.log(chalk.green(MODULE_NAME), 'Found:', { text, linksText, images });
+        return { results: text, links: linksText, images };
     } finally {
         await driver.quit();
     }
 }
 
-async function performDuckDuckGoSearch(query: string): Promise<SearchResult> {
-    const driver = await getDriver();
+async function performDuckDuckGoSearch(query: string, includeImages: boolean): Promise<SearchResult> {
+    const config = new DriverConfig();
+    const driver = await config.getDriver();
     try {
         await driver.get(`https://duckduckgo.com/?kp=-2&kl=wt-wt&q=${encodeURIComponent(query)}`);
-        await saveDebugPage(driver);
+        await config.saveDebugPage(driver);
 
         // Wait for the main content
-        await driver.wait(until.elementLocated(By.id('web_content_wrapper')), TIMEOUT);
+        await driver.wait(until.elementLocated(By.id('web_content_wrapper')), config.TIMEOUT);
 
         // Get text from the snippets
         const text = await getTextBySelector(driver, '[data-result="snippet"]');
@@ -157,8 +205,26 @@ async function performDuckDuckGoSearch(query: string): Promise<SearchResult> {
         const links = await driver.findElements(By.css('[data-testid="result-title-a"]'));
         const linksText = await Promise.all(links.map(el => el.getAttribute('href')));
 
-        console.log(chalk.green(MODULE_NAME), 'Found:', text, linksText);
-        return { results: text, links: linksText };
+        // Get images
+        const images: string[] = [];
+
+        if (includeImages) {
+            await driver.get(`https://duckduckgo.com/?kp=-2&kl=wt-wt&q=${encodeURIComponent(query)}&iax=images&ia=images`);
+            await config.saveDebugPage(driver);
+
+            // Wait for the images content
+            await driver.wait(until.elementLocated(By.css('#zci-images img.tile--img__img')), config.TIMEOUT);
+
+            const imageTiles = await driver.findElements(By.css('img.tile--img__img'));
+
+            for (let i = 0; i < Math.min(imageTiles.length, config.MAX_IMAGES); i++) {
+                const src = await imageTiles[i].getAttribute('src');
+                images.push(src);
+            }
+        }
+
+        console.log(chalk.green(MODULE_NAME), 'Found:', { text, linksText, images });
+        return { results: text, links: linksText, images };
     } finally {
         await driver.quit();
     }
@@ -177,11 +243,11 @@ export async function init(router: Router): Promise<void> {
         try {
             switch (req.body.engine) {
                 case 'google': {
-                    const result = await performGoogleSearch(req.body.query);
+                    const result = await performGoogleSearch(req.body.query, req.body.include_images);
                     return res.send(result);
                 }
                 case 'duckduckgo': {
-                    const result = await performDuckDuckGoSearch(req.body.query);
+                    const result = await performDuckDuckGoSearch(req.body.query, req.body.include_images);
                     return res.send(result);
                 }
                 default:
