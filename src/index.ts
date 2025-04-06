@@ -44,7 +44,7 @@ class DriverConfig {
     MAX_IMAGES = 10;
 
     private getBrowserName(): string {
-        const env = process.env.ST_SELENIUM_BROWSER;
+        const env = process.env.SILLYTAVERN_SELENIUM_BROWSER ?? process.env.ST_SELENIUM_BROWSER;
         if (env && Object.values(Browser).includes(env)) {
             return env;
         }
@@ -53,11 +53,11 @@ class DriverConfig {
     }
 
     private isHeadless(): boolean {
-        return (process.env.ST_SELENIUM_HEADLESS ?? 'true') === 'true';
+        return (process.env.SILLYTAVERN_SELENIUM_HEADLESS ?? process.env.ST_SELENIUM_HEADLESS ?? 'true') === 'true';
     }
 
     private isDebug(): boolean {
-        return (process.env.ST_SELENIUM_DEBUG ?? 'false') === 'true';
+        return (process.env.SILLYTAVERN_SELENIUM_DEBUG ?? process.env.ST_SELENIUM_DEBUG ?? 'false') === 'true';
     }
 
     private getChromeOptions(): ChromeOptions {

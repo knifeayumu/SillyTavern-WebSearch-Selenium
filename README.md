@@ -23,7 +23,7 @@ The plugin can be configured using [environment variables](https://dev.to/pizofr
 
 ### Choose a preferred browser
 
-`ST_SELENIUM_BROWSER` (string) - sets the browser to be used. Default: `chrome`.
+`SILLYTAVERN_SELENIUM_BROWSER` (string) - sets the browser to be used. Default: `chrome`.
 
 Possible values (case-sensitive!):
 
@@ -36,11 +36,11 @@ A chosen browser must be available and installed on your machine.
 
 ### Run in headless mode
 
-* `ST_SELENIUM_HEADLESS` (boolean) - launches browser in the headless (no visible GUI) mode. Default: `true`.
+* `SILLYTAVERN_SELENIUM_HEADLESS` (boolean) - launches browser in the headless (no visible GUI) mode. Default: `true`.
 
 ### Save debug pages
 
-* `ST_SELENIUM_DEBUG` (boolean) - save the HTML of search result pages to a temp directory. Default: `false`.
+* `SILLYTAVERN_SELENIUM_DEBUG` (boolean) - save the HTML of search result pages to a temp directory. Default: `false`.
 
 ## How to build
 
