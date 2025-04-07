@@ -223,7 +223,7 @@ async function performDuckDuckGoSearch(query: string, includeImages: boolean, ma
                 await driver.executeScript('window.scrollTo(0, document.body.scrollHeight)');
                 currentPageHeight = await config.waitForPageHeightIncrease(driver, currentPageHeight);
                 links = await driver.findElements(By.css('[data-testid="result-title-a"]'));
-                if (maxLinks >= links.length) {
+                if (links.length >= maxLinks) {
                     break;
                 }
             }
