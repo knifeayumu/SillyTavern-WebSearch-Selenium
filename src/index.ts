@@ -242,13 +242,13 @@ async function performDuckDuckGoSearch(query: string, includeImages: boolean, ma
 
         if (includeImages) {
             try {
-                await driver.get(`https://duckduckgo.com/?kp=-2&kl=wt-wt&q=${encodeURIComponent(query)}&iax=images&ia=images`);
+                await driver.get(`https://duckduckgo.com/?kl=wt-wt&kp=-2&kav=1&kf=-1&kac=-1&kbh=-1&ko=-1&k1=-1&kv=n&kz=-1&kat=-1&kbg=-1&kbe=0&kpsb=-1&q=${encodeURIComponent(query)}&iax=images&ia=images`);
                 await config.saveDebugPage(driver);
 
                 // Wait for the images content
-                await driver.wait(until.elementLocated(By.css('#zci-images img.tile--img__img')), config.TIMEOUT);
+                await driver.wait(until.elementLocated(By.css('#web_content_wrapper figure img')), config.TIMEOUT);
 
-                const imageTiles = await driver.findElements(By.css('img.tile--img__img'));
+                const imageTiles = await driver.findElements(By.css('#web_content_wrapper figure img'));
 
                 for (let i = 0; i < Math.min(imageTiles.length, config.MAX_IMAGES); i++) {
                     const src = await imageTiles[i].getAttribute('src');
