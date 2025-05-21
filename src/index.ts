@@ -37,8 +37,8 @@ class DriverConfig {
             return 60000 * 5;
         }
 
-        // 5 seconds
-        return 5000;
+        // 10 seconds
+        return 10000;
     }
 
     MAX_IMAGES = 10;
@@ -181,18 +181,22 @@ async function performGoogleSearch(query: string, includeImages: boolean, maxLin
         const images: string[] = [];
 
         if (includeImages) {
-            await driver.get(`https://google.com/search?hl=en&q=${encodeURIComponent(query)}&tbm=isch`);
-            await config.saveDebugPage(driver);
+            try {
+                await driver.get(`https://google.com/search?hl=en&q=${encodeURIComponent(query)}&tbm=isch`);
+                await config.saveDebugPage(driver);
 
-            // Wait for the images content
-            await driver.wait(until.elementLocated(By.css('#search .ob5Hkd img')), config.TIMEOUT);
+                // Wait for the images content
+                await driver.wait(until.elementLocated(By.css('#search .ob5Hkd img')), config.TIMEOUT);
 
-            const imageTiles = await driver.findElements(By.css('.ob5Hkd img'));
-            const numberOfImages = Math.min(imageTiles.length, config.MAX_IMAGES);
+                const imageTiles = await driver.findElements(By.css('.ob5Hkd img'));
+                const numberOfImages = Math.min(imageTiles.length, config.MAX_IMAGES);
 
-            for (let i = 0; i < numberOfImages; i++) {
-                const src = await imageTiles[i].getAttribute('src');
-                images.push(src);
+                for (let i = 0; i < numberOfImages; i++) {
+                    const src = await imageTiles[i].getAttribute('src');
+                    images.push(src);
+                }
+            } catch (error) {
+                console.warn(chalk.yellow(MODULE_NAME), 'Failed to get Google images', error);
             }
         }
 
@@ -237,17 +241,21 @@ async function performDuckDuckGoSearch(query: string, includeImages: boolean, ma
         const images: string[] = [];
 
         if (includeImages) {
-            await driver.get(`https://duckduckgo.com/?kp=-2&kl=wt-wt&q=${encodeURIComponent(query)}&iax=images&ia=images`);
-            await config.saveDebugPage(driver);
+            try {
+                await driver.get(`https://duckduckgo.com/?kp=-2&kl=wt-wt&q=${encodeURIComponent(query)}&iax=images&ia=images`);
+                await config.saveDebugPage(driver);
 
-            // Wait for the images content
-            await driver.wait(until.elementLocated(By.css('#zci-images img.tile--img__img')), config.TIMEOUT);
+                // Wait for the images content
+                await driver.wait(until.elementLocated(By.css('#zci-images img.tile--img__img')), config.TIMEOUT);
 
-            const imageTiles = await driver.findElements(By.css('img.tile--img__img'));
+                const imageTiles = await driver.findElements(By.css('img.tile--img__img'));
 
-            for (let i = 0; i < Math.min(imageTiles.length, config.MAX_IMAGES); i++) {
-                const src = await imageTiles[i].getAttribute('src');
-                images.push(src);
+                for (let i = 0; i < Math.min(imageTiles.length, config.MAX_IMAGES); i++) {
+                    const src = await imageTiles[i].getAttribute('src');
+                    images.push(src);
+                }
+            } catch (error) {
+                console.warn(chalk.yellow(MODULE_NAME), 'Failed to get DuckDuckGo images', error);
             }
         }
 
